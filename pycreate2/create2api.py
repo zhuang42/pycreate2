@@ -392,7 +392,18 @@ class Create2(object):
 
         self.SCI.write(opcode, cmd)
         time.sleep(0.015)  # wait 15 msec
+
         packet_byte_data = self.SCI.read(sensor_pkt_len)
+
+        flash_msg = packet_byte_data.find(b'(0x0)\n\r')
+        wakeup_msg = packet_byte_data.find(b'conds\r\n')
+        msg = max(flash_msg, wakeup_msg)
+
+        if not msg == -1:
+            print(packet_byte_data)
+            packet_byte_data_continue=self.SCI.read(msg+7)
+            packet_byte_data = packet_byte_data[msg+7:] + packet_byte_data_continue
+
         sensors = SensorPacketDecoder(packet_byte_data)
 
         return sensors
