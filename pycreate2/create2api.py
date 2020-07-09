@@ -31,7 +31,7 @@ class Create2(object):
         self.SCI.open(port, baud)
         # self.decoder = SensorPacketDecoder()
         self.decoder = None
-        self.sleep_timer = 0.5
+        self.sleep_timer = 1
         self.song_list = {}
 
     def __del__(self):
@@ -46,7 +46,7 @@ class Create2(object):
         time.sleep(0.1)
 
         # close it down
-        # self.power()
+        self.power()
         # self.safe()  # this beeps every now and then, but doesn't seem to go off
         time.sleep(0.1)
         self.stop()  # power down, makes a low beep sound
@@ -70,6 +70,7 @@ class Create2(object):
         # self.SCI.open()
         self.SCI.write(OPCODES.START)
         time.sleep(self.sleep_timer)
+        self.SCI.read_and_print_all()
 
     def getMode(self):
         """
@@ -93,15 +94,20 @@ class Create2(object):
         work! They wired it wrong:
         https://robotics.stackexchange.com/questions/7895/irobot-create-2-powering-up-after-sleep
         """
+
+        print(self.SCI.ser.rtscts)
+
         self.SCI.ser.rts = True
-        self.SCI.ser.dtr = True
-        time.sleep(1)
+        #self.SCI.ser.dtr = True
+        time.sleep(0.5)
         self.SCI.ser.rts = False
-        self.SCI.ser.dtr = False
-        time.sleep(1)
+        #self.SCI.ser.dtr = False
+        time.sleep(0.5)
         self.SCI.ser.rts = True
-        self.SCI.ser.dtr = True
-        time.sleep(1)  # Technically it should wake after 500ms.
+        #self.SCI.ser.dtr = True
+        time.sleep(0.5)  # Technically it should wake after 500ms.
+
+        self.SCI.read_and_print_all()
 
     def reset(self):
         """
@@ -113,8 +119,10 @@ class Create2(object):
         self.clearSongMemory()
         self.SCI.write(OPCODES.RESET)
         time.sleep(1)
-        ret = self.SCI.read(128)
+        ret = self.SCI.read_and_print_all()
         return ret
+
+
 
     def stop(self):
         """
@@ -123,8 +131,15 @@ class Create2(object):
         working with the robot.
         """
         self.clearSongMemory()
+
         self.SCI.write(OPCODES.STOP)
+
         time.sleep(self.sleep_timer)
+
+        self.SCI.read_and_print_all()
+        
+
+
 
     def safe(self):
         """
@@ -134,6 +149,7 @@ class Create2(object):
         self.SCI.write(OPCODES.SAFE)
         time.sleep(self.sleep_timer)
         self.clearSongMemory()
+        self.SCI.read_and_print_all()
 
     def full(self):
         """
@@ -143,9 +159,10 @@ class Create2(object):
         self.SCI.write(OPCODES.FULL)
         time.sleep(self.sleep_timer)
         self.clearSongMemory()
+        self.SCI.read_and_print_all()
 
-    # def seek_dock(self):
-    #     self.SCI.write(OPCODES.SEEK_DOCK)
+    def seek_dock(self):
+        self.SCI.write(OPCODES.SEEK_DOCK)
 
     def power(self):
         """
@@ -154,6 +171,7 @@ class Create2(object):
         """
         self.SCI.write(OPCODES.POWER)
         time.sleep(self.sleep_timer)
+        self.SCI.read_and_print_all()
 
     # ------------------ Drive Commands ------------------
 
@@ -384,25 +402,32 @@ class Create2(object):
 
         WARNING: now this only returns pkt 100, everything. And it is the default
             packet reques now.
+
+        Modified get sensor, instead of finding partiular debug string, it discards 
+        the readings if read length is not 80 (we expected)
         """
 
         opcode = OPCODES.SENSORS
         cmd = (100,)
         sensor_pkt_len = 80
 
-        self.SCI.write(opcode, cmd)
-        time.sleep(0.015)  # wait 15 msec
+        packet_byte_data = None
 
-        packet_byte_data = self.SCI.read(sensor_pkt_len)
+        while True:
 
-        flash_msg = packet_byte_data.find(b'(0x0)\n\r')
-        wakeup_msg = packet_byte_data.find(b'conds\r\n')
-        msg = max(flash_msg, wakeup_msg)
+            self.SCI.write(opcode, cmd)
+            time.sleep(0.5)  # wait 15 msec
 
-        if not msg == -1:
+            packet_byte_data = self.SCI.read_all()
+
+            if len(packet_byte_data) == sensor_pkt_len:
+            
+                break
+        
+            print('Sensor data not 80 bytes long, it is: {}'.format(len(packet_byte_data)))
             print(packet_byte_data)
-            packet_byte_data_continue=self.SCI.read(msg+7)
-            packet_byte_data = packet_byte_data[msg+7:] + packet_byte_data_continue
+            print("Failed to get sensor, retrying in 0.5 sec")
+            time.sleep(0.5)
 
         sensors = SensorPacketDecoder(packet_byte_data)
 

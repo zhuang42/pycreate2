@@ -41,6 +41,7 @@ class SerialCommandInterface(object):
         self.ser.port = port
         self.ser.baudrate = baud
         self.ser.timeout = timeout
+        self.ser.rtscts = True
         # print self.ser.name
         if self.ser.is_open:
             self.ser.close()
@@ -85,6 +86,24 @@ class SerialCommandInterface(object):
         data = self.ser.read(num_bytes)
 
         return data
+
+    def read_all(self):
+        if not self.ser.is_open:
+            raise Exception('You must open the serial port first')
+        
+
+        # If not timeout, read all will block forever.
+        data = self.ser.read(21474836)
+
+        return data
+
+    def read_and_print_all(self):
+        packet = self.read_all()
+        if packet:
+            print(packet)
+        return packet
+
+
 
     def close(self):
         """
